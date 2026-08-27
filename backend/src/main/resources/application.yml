@@ -1,0 +1,39 @@
+server:
+  port: 8080
+
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: garage-management
+  datasource:
+    url: ${GARAGE_DB_URL:jdbc:postgresql://localhost:5432/garage_management}
+    username: ${GARAGE_DB_USERNAME:postgres}
+    password: ${GARAGE_DB_PASSWORD:postgres}
+  jpa:
+    defer-datasource-initialization: false
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+garage:
+  security:
+    jwt-secret: ${GARAGE_JWT_SECRET:change-this-development-secret-change-this}
+    access-token-minutes: ${GARAGE_ACCESS_TOKEN_MINUTES:15}
+    refresh-token-days: ${GARAGE_REFRESH_TOKEN_DAYS:14}
+  admin:
+    email: ${GARAGE_ADMIN_EMAIL:admin@garage.com}
+    mobile: ${GARAGE_ADMIN_MOBILE:9876543210}
+    password: ${GARAGE_ADMIN_PASSWORD:}
+  manager:
+    email: ${GARAGE_MANAGER_EMAIL:manager@garage.com}
+    mobile: ${GARAGE_MANAGER_MOBILE:9876543211}
+    password: ${GARAGE_MANAGER_PASSWORD:}
+  technician:
+    email: ${GARAGE_TECHNICIAN_EMAIL:technician@garage.com}
+    mobile: ${GARAGE_TECHNICIAN_MOBILE:9876543212}
+    password: ${GARAGE_TECHNICIAN_PASSWORD:}
+  cors:
+    frontend-origin: ${FRONTEND_ORIGIN:http://localhost:3000,http://127.0.0.1:3000,http://*:3000}

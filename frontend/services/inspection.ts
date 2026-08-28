@@ -19,7 +19,7 @@ export async function getInspection(jobCardId: string) {
 export async function saveInspection(jobCardId: string, items: InspectionRow[]) {
   const response = await api.post<ApiResponse<InspectionRow[]>>(`/job-cards/${jobCardId}/inspection`, {
     items: items
-      .filter((item) => item.condition)
+      .filter((item) => item.condition || item.notes || item.photoUrl)
       .map((item) => ({
         itemId: item.itemId,
         condition: item.condition,
@@ -29,4 +29,3 @@ export async function saveInspection(jobCardId: string, items: InspectionRow[]) 
   });
   return response.data.data;
 }
-

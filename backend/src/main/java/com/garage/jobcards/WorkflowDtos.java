@@ -11,6 +11,8 @@ public class WorkflowDtos {
 
     public record LabourItemDto(String description, BigDecimal qty, BigDecimal rate, BigDecimal gstPercent, String notes) {}
 
+    public record InspectionResultDto(String itemName, String condition, String notes, String photoUrl) {}
+
     public record WorkflowUpdateRequest(
             JobCardStatus status,
             List<WorkItemDto> workItems,
@@ -43,11 +45,20 @@ public class WorkflowDtos {
             JobCardStatus status,
             String customerName,
             String customerPhone,
+            String customerAddress,
             Long vehicleId,
             String registrationNumber,
             String chassisNumber,
+            Integer vehicleCurrentKm,
+            Integer odometerKm,
+            OffsetDateTime expectedDeliveryAt,
             String serviceTypes,
             String complaint,
+            String fuelLevel,
+            String vehicleCondition,
+            String accessories,
+            String photoUrls,
+            List<InspectionResultDto> inspectionResults,
             List<WorkItemDto> workItems,
             List<PartItemDto> partsItems,
             List<LabourItemDto> labourItems,

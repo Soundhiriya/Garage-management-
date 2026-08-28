@@ -2,6 +2,8 @@ package com.garage.jobcards;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.garage.inspections.JobCardInspection;
+import com.garage.inspections.JobCardInspectionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +17,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class WorkflowService {
     private final JobCardRepository jobCardRepository;
+    private final JobCardInspectionRepository jobCardInspectionRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional(readOnly = true)
@@ -73,6 +76,9 @@ public class WorkflowService {
         List<WorkflowDtos.WorkItemDto> workItems = parseWorkItems(jobCard.getWorkItems());
         List<WorkflowDtos.PartItemDto> partsItems = parseParts(jobCard.getPartsItems());
         List<WorkflowDtos.LabourItemDto> labourItems = parseLabour(jobCard.getLabourItems());
+        List<WorkflowDtos.InspectionResultDto> inspectionResults = jobCardInspectionRepository.findByJobCardId(jobCard.getId()).stream()
+                .map(this::toInspectionResult)
+                .toList();
         BigDecimal discount = nvl(jobCard.getDiscountAmount());
         BigDecimal[] totals = computeTotals(workItems, partsItems, labourItems, discount);
         BigDecimal invoiceAmount = nvl(jobCard.getInvoiceAmount());
@@ -85,11 +91,20 @@ public class WorkflowService {
                 jobCard.getStatus(),
                 jobCard.getCustomer().getName(),
                 jobCard.getCustomer().getPhone(),
+                jobCard.getCustomer().getAddress(),
                 jobCard.getVehicle().getId(),
                 jobCard.getVehicle().getRegistrationNumber(),
                 jobCard.getVehicle().getChassisNumber(),
+                jobCard.getVehicle().getCurrentKm(),
+                jobCard.getOdometerKm(),
+                jobCard.getExpectedDeliveryAt(),
                 jobCard.getServiceTypes(),
                 jobCard.getComplaint(),
+                jobCard.getFuelLevel(),
+                jobCard.getVehicleCondition(),
+                jobCard.getAccessories(),
+                jobCard.getPhotoUrls(),
+                inspectionResults,
                 workItems,
                 partsItems,
                 labourItems,
@@ -121,6 +136,15 @@ public class WorkflowService {
         );
     }
 
+    private WorkflowDtos.InspectionResultDto toInspectionResult(JobCardInspection inspection) {
+        return new WorkflowDtos.InspectionResultDto(
+                inspection.getItem().getName(),
+                inspection.getConditionStatus() == null ? null : inspection.getConditionStatus().name(),
+                inspection.getNotes(),
+                inspection.getPhotoUrl()
+        );
+    }
+
     private String derivePaymentStatus(BigDecimal invoiceAmount, BigDecimal paidAmount, String fallback) {
         if (invoiceAmount.compareTo(BigDecimal.ZERO) <= 0) return fallback == null ? "PENDING" : fallback;
         if (paidAmount.compareTo(BigDecimal.ZERO) <= 0) return "PENDING";
@@ -140,17 +164,14 @@ public class WorkflowService {
             partsGst = partsGst.add(gst);
         }
         BigDecimal labourSubtotal = BigDecimal.ZERO;
-        BigDecimal labourGst = BigDecimal.ZERO;
         for (WorkflowDtos.LabourItemDto item : labour) {
             BigDecimal qty = nvl(item.qty());
             BigDecimal rate = nvl(item.rate());
             BigDecimal lineTotal = qty.multiply(rate);
-            BigDecimal gst = lineTotal.multiply(nvl(item.gstPercent())).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
             labourSubtotal = labourSubtotal.add(lineTotal);
-            labourGst = labourGst.add(gst);
         }
         BigDecimal subtotal = partsSubtotal.add(labourSubtotal).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal gstTotal = partsGst.add(labourGst).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal gstTotal = partsGst.setScale(2, RoundingMode.HALF_UP);
         BigDecimal grandTotal = subtotal.add(gstTotal).subtract(nvl(discount)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
         return new BigDecimal[]{subtotal, gstTotal, grandTotal};
     }

@@ -16,9 +16,8 @@ export function computeTotals(partsItems: PartItem[], labourItems: LabourItem[],
   const partsSubtotal = partsItems.reduce((sum, p) => sum + (Number(p.qty) || 0) * (Number(p.price) || 0), 0);
   const partsGst = partsItems.reduce((sum, p) => sum + ((Number(p.qty) || 0) * (Number(p.price) || 0)) * ((Number(p.gstPercent) || 0) / 100), 0);
   const labourSubtotal = labourItems.reduce((sum, l) => sum + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0);
-  const labourGst = labourItems.reduce((sum, l) => sum + ((Number(l.qty) || 0) * (Number(l.rate) || 0)) * ((Number(l.gstPercent) || 0) / 100), 0);
   const subtotal = partsSubtotal + labourSubtotal;
-  const gstTotal = partsGst + labourGst;
+  const gstTotal = partsGst;
   const grandTotal = Math.max(0, subtotal + gstTotal - (Number(discountAmount) || 0));
   return { partsSubtotal, labourSubtotal, subtotal, gstTotal, grandTotal };
 }
@@ -43,16 +42,16 @@ export function SelectBox({ label, value, onChange, options }: { label: string; 
   );
 }
 
-export function PlainInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder?: string }) {
-  return <input className="focus-ring w-full rounded-md border border-[var(--line)] bg-white px-2 py-2 text-sm" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />;
+export function PlainInput({ value, onChange, placeholder, className }: { value: string; onChange: (value: string) => void; placeholder?: string; className?: string }) {
+  return <input className={`focus-ring rounded-md border border-[var(--line)] bg-white px-2 py-2 text-sm ${className ?? "w-full"}`} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />;
 }
 
-export function NumberInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return <input className="focus-ring w-24 rounded-md border border-[var(--line)] bg-white px-2 py-2 text-sm" inputMode="decimal" value={value} onChange={(e) => onChange(Number(e.target.value) || 0)} />;
+export function NumberInput({ value, onChange, className }: { value: number; onChange: (value: number) => void; className?: string }) {
+  return <input className={`focus-ring rounded-md border border-[var(--line)] bg-white px-2 py-2 text-sm ${className ?? "w-24"}`} inputMode="decimal" value={value} onChange={(e) => onChange(Number(e.target.value) || 0)} />;
 }
 
-export function TableCell({ children }: { children: ReactNode }) {
-  return <td className="p-1 align-top">{children}</td>;
+export function TableCell({ children, className }: { children: ReactNode; className?: string }) {
+  return <td className={`p-1 align-top ${className ?? ""}`}>{children}</td>;
 }
 
 export function ItemTable<T>({
@@ -62,7 +61,8 @@ export function ItemTable<T>({
   empty,
   renderRow,
   addLabel,
-  readOnly
+  readOnly,
+  addPosition = "bottom"
 }: {
   columns: string[];
   rows: T[];
@@ -71,6 +71,7 @@ export function ItemTable<T>({
   renderRow: (row: T, update: (row: T) => void) => ReactNode;
   addLabel: string;
   readOnly?: boolean;
+  addPosition?: "top" | "bottom";
 }) {
   function updateRow(index: number, row: T) {
     onChange(rows.map((existing, i) => (i === index ? row : existing)));
@@ -80,6 +81,12 @@ export function ItemTable<T>({
   }
   return (
     <div className="grid gap-3">
+      {!readOnly && addPosition === "top" ? (
+        <Button type="button" variant="secondary" className="w-fit min-h-11" onClick={() => onChange([...rows, { ...empty }])}>
+          <Plus className="h-4 w-4" />
+          {addLabel}
+        </Button>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
@@ -109,12 +116,12 @@ export function ItemTable<T>({
           </tbody>
         </table>
       </div>
-      {readOnly ? null : (
+      {!readOnly && addPosition === "bottom" ? (
         <Button type="button" variant="secondary" className="w-fit min-h-11" onClick={() => onChange([...rows, { ...empty }])}>
           <Plus className="h-4 w-4" />
           {addLabel}
         </Button>
-      )}
+      ) : null}
     </div>
   );
 }

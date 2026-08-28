@@ -12,7 +12,7 @@ public class RegisterDtos {
             @NotBlank String chassisNumber,
             @NotBlank String registrationNumber,
             @NotBlank String customerName,
-            @NotBlank @Pattern(regexp = "^[0-9+ -]{7,20}$", message = "Enter a valid phone number") String phoneNumber,
+            @NotBlank @Pattern(regexp = "^\\d{10}$", message = "Phone number must be 10 digits") String phoneNumber,
             @NotBlank String address,
             Integer currentKm,
             List<String> serviceTypes,

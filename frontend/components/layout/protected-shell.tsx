@@ -30,7 +30,7 @@ const technicianNav: NavItem[] = [
   ["Photos", "#", FileText]
 ];
 
-export function ProtectedShell({ children, title = "Dashboard" }: { children: React.ReactNode; title?: string }) {
+export function ProtectedShell({ children, title = "Dashboard", hidePageHeader = false }: { children: React.ReactNode; title?: string; hidePageHeader?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const [drawerMounted, setDrawerMounted] = useState(false);
@@ -212,10 +212,12 @@ export function ProtectedShell({ children, title = "Dashboard" }: { children: Re
           </div>
         </aside>
         <main className="min-w-0 p-4 sm:p-6 lg:p-8">
-          <div className="mb-6 border-b border-[var(--line)] pb-5 print:hidden">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--primary-dark)]">{isLoading ? "Loading account" : user?.role}</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-normal text-slate-950 sm:text-3xl">{title}</h1>
-          </div>
+          {!hidePageHeader ? (
+            <div className="mb-6 border-b border-[var(--line)] pb-5 print:hidden">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--primary-dark)]">{isLoading ? "Loading account" : user?.role}</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-normal text-slate-950 sm:text-3xl">{title}</h1>
+            </div>
+          ) : null}
           {children}
         </main>
       </div>

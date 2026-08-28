@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import type { ChangeEvent } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Car, Search } from "lucide-react";
@@ -17,30 +18,66 @@ function toUpper(event: { target: HTMLInputElement }) {
   if (cursor !== null) event.target.setSelectionRange(cursor, cursor);
 }
 
+function limitPhoneNumber(event: { target: HTMLInputElement }) {
+  event.target.value = event.target.value.replace(/\D/g, "").slice(0, 10);
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResult, setSearchResult] = useState<VehicleSearchResult | null>(null);
   const [searched, setSearched] = useState(false);
+  const latestSearchId = useRef(0);
   const {
     register,
     handleSubmit,
     setValue,
+    clearErrors,
     formState: { errors, isSubmitting }
   } = useForm<any>({ resolver: zodResolver(registerSchema) });
 
-  async function handleSearch() {
+  function clearVehicleDetails(registrationNumber = "") {
+    setSearchResult(null);
+    setValue("registrationNumber", registrationNumber, { shouldValidate: false });
+    setValue("chassisNumber", "", { shouldValidate: false });
+    setValue("customerName", "", { shouldValidate: false });
+    setValue("phoneNumber", "", { shouldValidate: false });
+    setValue("address", "", { shouldValidate: false });
+    clearErrors(["registrationNumber", "chassisNumber", "customerName", "phoneNumber", "address"]);
+  }
+
+  function handleSearchQueryChange(event: ChangeEvent<HTMLInputElement>) {
+    const nextValue = event.target.value.toUpperCase();
+    setSearchQuery(nextValue);
+    latestSearchId.current += 1;
+    setSearched(false);
     setServerError("");
+    clearVehicleDetails(nextValue.trim() ? nextValue : "");
+  }
+
+  async function handleSearch() {
+    const normalizedQuery = searchQuery.trim().toUpperCase();
+    const searchId = latestSearchId.current + 1;
+    latestSearchId.current = searchId;
+    setServerError("");
+    clearVehicleDetails(normalizedQuery);
+    if (!normalizedQuery) {
+      setSearched(false);
+      return;
+    }
     setSearched(true);
-    const result = await searchVehicleEntry(searchQuery.toUpperCase());
+    const result = await searchVehicleEntry(normalizedQuery);
+    if (searchId !== latestSearchId.current) return;
     setSearchResult(result);
     if (result) {
       setValue("chassisNumber", result.chassisNumber);
-      setValue("registrationNumber", result.registrationNumber ?? "");
+      setValue("registrationNumber", result.registrationNumber ?? normalizedQuery);
       setValue("customerName", result.customerName);
       setValue("phoneNumber", result.customerPhone);
       setValue("address", result.customerAddress);
+    } else {
+      setValue("registrationNumber", normalizedQuery);
     }
   }
 
@@ -68,7 +105,7 @@ export default function RegisterPage() {
             <h2 className="text-lg font-bold tracking-normal text-slate-950">Search Existing Vehicle</h2>
           </div>
           <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-            <Input label="Vehicle Number" className="uppercase" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value.toUpperCase())} placeholder="TN72BS1166" />
+            <Input label="Vehicle Number" className="uppercase" value={searchQuery} onChange={handleSearchQueryChange} placeholder="TN72BS1166" />
             <Button type="button" className="self-end" onClick={handleSearch}>SEARCH</Button>
           </div>
           {searchResult ? (
@@ -110,7 +147,15 @@ export default function RegisterPage() {
               })}
             />
             <Input label="Customer Name" error={errorMessage("customerName")} {...register("customerName")} />
-            <Input label="Phone Number" inputMode="tel" error={errorMessage("phoneNumber")} {...register("phoneNumber")} />
+            <Input
+              label="Phone Number"
+              inputMode="numeric"
+              maxLength={10}
+              error={errorMessage("phoneNumber")}
+              {...register("phoneNumber", {
+                onChange: limitPhoneNumber
+              })}
+            />
             <div className="md:col-span-2">
               <Input label="Address" error={errorMessage("address")} {...register("address")} />
             </div>

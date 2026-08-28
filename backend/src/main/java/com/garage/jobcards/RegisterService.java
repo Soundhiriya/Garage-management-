@@ -32,11 +32,16 @@ public class RegisterService {
         customer.setAddress(request.address().trim());
         customer = customerRepository.save(customer);
 
+        String registrationNumber = blankToNull(request.registrationNumber()) == null ? null : request.registrationNumber().trim().toUpperCase();
+        if (registrationNumber != null && vehicleRepository.findByRegistrationNumberIgnoreCase(registrationNumber).isPresent()) {
+            throw new IllegalArgumentException("Vehicle number already exists. Search and open the existing vehicle instead.");
+        }
+
         String chassis = request.chassisNumber().trim().toUpperCase();
         Vehicle vehicle = vehicleRepository.findByChassisNumberIgnoreCase(chassis).orElseGet(Vehicle::new);
         vehicle.setCustomer(customer);
         vehicle.setChassisNumber(chassis);
-        vehicle.setRegistrationNumber(blankToNull(request.registrationNumber()) == null ? null : request.registrationNumber().trim().toUpperCase());
+        vehicle.setRegistrationNumber(registrationNumber);
         vehicle.setCurrentKm(request.currentKm());
         vehicle = vehicleRepository.save(vehicle);
 

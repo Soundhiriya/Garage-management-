@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check } from "lucide-react";
 import { ProtectedShell } from "@/components/layout/protected-shell";
@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { getJobCard, type JobCardDetails } from "@/services/register";
 import { getWorkflowJobCard, updateWorkflowJobCard, type LabourItem, type PartItem, type WorkflowJobCard } from "@/services/workflow";
 import { WorkflowBoard } from "@/components/workflow/workflow-board";
-import { ItemTable, NumberInput, PlainInput, Row, TableCell, computeTotals, emptyLabour, emptyPart, rupees } from "@/components/workflow/shared";
+import { ItemTable, Row, TableCell, computeTotals, emptyLabour, emptyPart, rupees } from "@/components/workflow/shared";
+import { groupComplaintByService } from "@/lib/complaint";
 
 export default function EstimatesPage() {
   return (
@@ -37,10 +38,9 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
   const [partsItems, setPartsItems] = useState<PartItem[]>([]);
   const [labourItems, setLabourItems] = useState<LabourItem[]>([]);
   const [discountAmount, setDiscountAmount] = useState("0");
-  const [estimateNotes, setEstimateNotes] = useState("");
   const [approvalStatus, setApprovalStatus] = useState("PENDING");
-  const [approvalNotes, setApprovalNotes] = useState("");
   const [message, setMessage] = useState("");
+  const autoSavedJobCardRef = useRef<string | null>(null);
 
   const { data: jobCard, isLoading: jobCardLoading, isError: jobCardError } = useQuery({
     queryKey: ["job-card", jobCardId],
@@ -48,6 +48,7 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
     enabled: Boolean(jobCardId),
     retry: false
   });
+
   const { data: workflow, isLoading: workflowLoading, isError: workflowError } = useQuery({
     queryKey: ["workflow-job-card", jobCardId],
     queryFn: () => getWorkflowJobCard(Number(jobCardId)),
@@ -60,20 +61,14 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
     setPartsItems(workflow.partsItems.length ? workflow.partsItems : []);
     setLabourItems(workflow.labourItems.length ? workflow.labourItems : []);
     setDiscountAmount(String(workflow.discountAmount ?? 0));
-    setEstimateNotes(workflow.estimateNotes ?? "");
     setApprovalStatus(workflow.approvalStatus ?? "PENDING");
-    setApprovalNotes(workflow.approvalNotes ?? "");
   }, [workflow]);
 
   const mutation = useMutation({
     mutationFn: (extra: Record<string, unknown> = {}) =>
       updateWorkflowJobCard(Number(jobCardId), {
-        partsItems,
-        labourItems,
         discountAmount: Number(discountAmount || 0),
-        estimateNotes,
         approvalStatus,
-        approvalNotes,
         ...extra
       }),
     onSuccess: async () => {
@@ -83,12 +78,23 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
     }
   });
 
+  useEffect(() => {
+    if (!workflow || autoSavedJobCardRef.current === jobCardId) return;
+    autoSavedJobCardRef.current = jobCardId;
+    mutation.mutate({
+      status: "ESTIMATE",
+      discountAmount: Number(workflow.discountAmount ?? 0),
+      approvalStatus: workflow.approvalStatus ?? "PENDING"
+    });
+  }, [jobCardId, mutation, workflow]);
+
   const totals = computeTotals(partsItems, labourItems, Number(discountAmount) || 0);
   const isLoading = jobCardLoading || workflowLoading;
   const isError = jobCardError || workflowError;
+  const groupedComplaint = groupComplaintByService(jobCard?.complaint);
 
   return (
-    <ProtectedShell title="Estimate">
+    <ProtectedShell title="Estimate" hidePageHeader>
       <section className="mx-auto grid max-w-4xl gap-5">
         <Link href="/estimates" className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-[var(--primary)] hover:underline">
           <ArrowLeft className="h-4 w-4" />
@@ -100,31 +106,30 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
 
         {jobCard && workflow ? (
           <>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase text-[var(--primary)]">Estimate</p>
-                <h1 className="mt-2 text-2xl font-bold tracking-normal text-slate-950 sm:text-3xl">{jobCard.jobCardNumber}</h1>
+            <section className="grid gap-2 border-b border-[var(--line)] pb-3">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 text-sm leading-5 text-slate-800">
+                <p><span className="font-semibold text-slate-950">Customer:</span> {jobCard.customer.name}</p>
+                <p className="text-right text-xs font-semibold uppercase text-[var(--muted)]">
+                  Job Card: <span className="text-sm normal-case text-slate-950">{jobCard.jobCardNumber}</span>
+                </p>
               </div>
-              <div className="inline-flex w-fit rounded-md bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">{workflow.status.replace(/_/g, " ")}</div>
-            </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm leading-5 text-slate-800">
+                <p><span className="font-semibold text-slate-950">Phone:</span> {jobCard.customer.phone}</p>
+                <p><span className="font-semibold text-slate-950">Vehicle:</span> {jobCard.vehicle.registrationNumber ?? jobCard.vehicle.chassisNumber ?? "-"}</p>
+              </div>
+              <div className="mt-1 inline-flex w-fit rounded-md bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">{workflow.status.replace(/_/g, " ")}</div>
+            </section>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <article className="rounded-lg border border-[var(--line)] bg-white p-4 shadow-sm">
-                <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Customer</h2>
-                <p className="font-semibold text-slate-900">{jobCard.customer.name}</p>
-                <p className="text-sm text-slate-700">{jobCard.customer.phone}</p>
-              </article>
-              <article className="rounded-lg border border-[var(--line)] bg-white p-4 shadow-sm">
-                <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Vehicle</h2>
-                <p className="font-semibold text-slate-900">{jobCard.vehicle.registrationNumber ?? jobCard.vehicle.chassisNumber}</p>
-                <p className="text-sm text-slate-700">{jobCard.vehicle.currentKm?.toLocaleString("en-IN") ?? "-"} km</p>
-              </article>
-            </div>
-
-            {jobCard.complaint ? (
+            {groupedComplaint.length ? (
               <article className="rounded-lg border border-[var(--line)] bg-white p-4 shadow-sm">
                 <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Complaint</h2>
-                <p className="text-sm text-slate-700">{jobCard.complaint}</p>
+                <div className="grid gap-1">
+                  {groupedComplaint.map((group) => (
+                    <p key={group.service} className="text-sm text-slate-700">
+                      <span className="font-semibold text-slate-900">{group.service}:</span> {group.issues.join(", ")}
+                    </p>
+                  ))}
+                </div>
               </article>
             ) : null}
 
@@ -152,43 +157,56 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
 
             <article className="rounded-lg border border-[var(--line)] bg-white p-5 shadow-sm">
               <h2 className="mb-4 text-lg font-bold tracking-normal">Parts</h2>
+              <p className="mb-3 text-xs text-[var(--muted)]">From Job Card Step 5 - Parts + Labour. Not editable here.</p>
               <ItemTable
-                columns={["Part Name", "Part Number", "Qty", "Selling Price", "GST %", "Notes"]}
+                columns={["Part Name", "Part Number", "Qty", "Selling Price", "GST %", "Amount", "Notes"]}
                 rows={partsItems}
-                onChange={setPartsItems}
+                onChange={() => {}}
                 empty={emptyPart}
-                addLabel="ADD PART"
-                renderRow={(row, update) => (
-                  <>
-                    <TableCell><PlainInput value={row.name} onChange={(v) => update({ ...row, name: v })} /></TableCell>
-                    <TableCell><PlainInput value={row.partNumber ?? ""} onChange={(v) => update({ ...row, partNumber: v })} /></TableCell>
-                    <TableCell><NumberInput value={row.qty} onChange={(v) => update({ ...row, qty: v })} /></TableCell>
-                    <TableCell><NumberInput value={row.price} onChange={(v) => update({ ...row, price: v })} /></TableCell>
-                    <TableCell><NumberInput value={row.gstPercent} onChange={(v) => update({ ...row, gstPercent: v })} /></TableCell>
-                    <TableCell><PlainInput value={row.notes ?? ""} onChange={(v) => update({ ...row, notes: v })} /></TableCell>
-                  </>
-                )}
+                addLabel=""
+                readOnly
+                renderRow={(row) => {
+                  const base = (Number(row.qty) || 0) * (Number(row.price) || 0);
+                  const amount = base + base * ((Number(row.gstPercent) || 0) / 100);
+                  return (
+                    <>
+                      <TableCell>{row.name}</TableCell>
+                      <TableCell>{row.partNumber || "-"}</TableCell>
+                      <TableCell>{row.qty}</TableCell>
+                      <TableCell>{rupees.format(row.price)}</TableCell>
+                      <TableCell>{row.gstPercent}%</TableCell>
+                      <TableCell><span className="text-sm font-semibold text-slate-800">{rupees.format(amount)}</span></TableCell>
+                      <TableCell>{row.notes || "-"}</TableCell>
+                    </>
+                  );
+                }}
               />
             </article>
 
             <article className="rounded-lg border border-[var(--line)] bg-white p-5 shadow-sm">
               <h2 className="mb-4 text-lg font-bold tracking-normal">Labour</h2>
+              <p className="mb-3 text-xs text-[var(--muted)]">From Job Card Step 5 - Parts + Labour. Not editable here.</p>
               <ItemTable
                 columns={["Description", "Qty", "Rate", "GST %", "Amount", "Notes"]}
                 rows={labourItems}
-                onChange={setLabourItems}
+                onChange={() => {}}
                 empty={emptyLabour}
-                addLabel="ADD LABOUR"
-                renderRow={(row, update) => (
-                  <>
-                    <TableCell><PlainInput value={row.description} onChange={(v) => update({ ...row, description: v })} /></TableCell>
-                    <TableCell><NumberInput value={row.qty} onChange={(v) => update({ ...row, qty: v })} /></TableCell>
-                    <TableCell><NumberInput value={row.rate} onChange={(v) => update({ ...row, rate: v })} /></TableCell>
-                    <TableCell><NumberInput value={row.gstPercent} onChange={(v) => update({ ...row, gstPercent: v })} /></TableCell>
-                    <TableCell><span className="text-sm font-semibold text-slate-800">{rupees.format((Number(row.qty) || 0) * (Number(row.rate) || 0))}</span></TableCell>
-                    <TableCell><PlainInput value={row.notes ?? ""} onChange={(v) => update({ ...row, notes: v })} /></TableCell>
-                  </>
-                )}
+                addLabel=""
+                readOnly
+                renderRow={(row) => {
+                  const base = (Number(row.qty) || 0) * (Number(row.rate) || 0);
+                  const amount = base + base * ((Number(row.gstPercent) || 0) / 100);
+                  return (
+                    <>
+                      <TableCell>{row.description}</TableCell>
+                      <TableCell>{row.qty}</TableCell>
+                      <TableCell>{rupees.format(row.rate)}</TableCell>
+                      <TableCell>{row.gstPercent}%</TableCell>
+                      <TableCell><span className="text-sm font-semibold text-slate-800">{rupees.format(amount)}</span></TableCell>
+                      <TableCell>{row.notes || "-"}</TableCell>
+                    </>
+                  );
+                }}
               />
             </article>
 
@@ -209,13 +227,6 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
                   }
                 />
                 <Row label="Grand Total" value={<strong className="text-base text-[var(--primary-dark)]">{rupees.format(totals.grandTotal)}</strong>} />
-              </div>
-              <label className="mt-4 grid gap-2 text-sm font-medium text-slate-800">
-                Estimate Notes
-                <textarea className="focus-ring min-h-24 rounded-md border border-[var(--line)] bg-white px-3 py-3 text-base text-slate-950" value={estimateNotes} onChange={(e) => setEstimateNotes(e.target.value)} />
-              </label>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button type="button" loading={mutation.isPending} onClick={() => mutation.mutate({ status: "ESTIMATE" })}>SAVE ESTIMATE</Button>
               </div>
             </article>
 
@@ -239,10 +250,6 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
                   }
                 />
               </div>
-              <label className="mt-4 grid gap-2 text-sm font-medium text-slate-800">
-                Approval Notes
-                <textarea className="focus-ring min-h-20 rounded-md border border-[var(--line)] bg-white px-3 py-3 text-base text-slate-950" value={approvalNotes} onChange={(e) => setApprovalNotes(e.target.value)} />
-              </label>
               <div className="mt-4 flex flex-wrap gap-2">
                 {approvalStatus === "APPROVED" ? (
                   <Button
@@ -259,7 +266,7 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
                     loading={mutation.isPending}
                     onClick={() => {
                       setApprovalStatus("APPROVED");
-                      mutation.mutate({ approvalStatus: "APPROVED", approvalNotes, status: "APPROVED" });
+                      mutation.mutate({ approvalStatus: "APPROVED", status: "APPROVED" });
                     }}
                   >
                     <Check className="h-4 w-4" />

@@ -4,6 +4,7 @@ import type { ApiResponse } from "@/types/auth";
 export type WorkItem = { description: string; technician: string | null; status: string; notes: string | null };
 export type PartItem = { name: string; partNumber: string | null; qty: number; price: number; gstPercent: number; notes: string | null };
 export type LabourItem = { description: string; qty: number; rate: number; gstPercent: number; notes: string | null };
+export type InspectionResult = { itemName: string; condition: string | null; notes: string | null; photoUrl: string | null };
 
 export type WorkflowJobCard = {
   id: number;
@@ -11,11 +12,20 @@ export type WorkflowJobCard = {
   status: string;
   customerName: string;
   customerPhone: string;
+  customerAddress: string | null;
   vehicleId: number;
   registrationNumber: string | null;
   chassisNumber: string;
+  vehicleCurrentKm: number | null;
+  odometerKm: number | null;
+  expectedDeliveryAt: string | null;
   serviceTypes: string | null;
   complaint: string | null;
+  fuelLevel: string | null;
+  vehicleCondition: string | null;
+  accessories: string | null;
+  photoUrls: string | null;
+  inspectionResults: InspectionResult[];
   workItems: WorkItem[];
   partsItems: PartItem[];
   labourItems: LabourItem[];

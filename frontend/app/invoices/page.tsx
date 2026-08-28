@@ -77,7 +77,7 @@ function InvoiceEditor({ jobCardId }: { jobCardId: string }) {
   const status = workflow?.status ?? "RECEIVED";
 
   return (
-    <ProtectedShell title="Invoice">
+    <ProtectedShell title="Invoice" hidePageHeader>
       <section className="mx-auto grid max-w-4xl gap-5">
         <Link href="/invoices" className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-[var(--primary)] hover:underline">
           <ArrowLeft className="h-4 w-4" />
@@ -89,26 +89,20 @@ function InvoiceEditor({ jobCardId }: { jobCardId: string }) {
 
         {jobCard && workflow ? (
           <>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase text-[var(--primary)]">Invoice</p>
-                <h1 className="mt-2 text-2xl font-bold tracking-normal text-slate-950 sm:text-3xl">{jobCard.jobCardNumber}</h1>
+            <section className="grid gap-2 border-b border-[var(--line)] pb-3">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 text-sm leading-5 text-slate-800">
+                <p><span className="font-semibold text-slate-950">Customer:</span> {jobCard.customer.name}</p>
+                <p className="text-right text-xs font-semibold uppercase text-[var(--muted)]">
+                  Job Card: <span className="text-sm normal-case text-slate-950">{jobCard.jobCardNumber}</span>
+                </p>
               </div>
-              <div className="inline-flex w-fit rounded-md bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">{status.replace(/_/g, " ")}</div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <article className="rounded-lg border border-[var(--line)] bg-white p-4 shadow-sm">
-                <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Customer</h2>
-                <p className="font-semibold text-slate-900">{jobCard.customer.name}</p>
-                <p className="text-sm text-slate-700">{jobCard.customer.phone}</p>
-              </article>
-              <article className="rounded-lg border border-[var(--line)] bg-white p-4 shadow-sm">
-                <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Vehicle</h2>
-                <p className="font-semibold text-slate-900">{jobCard.vehicle.registrationNumber ?? jobCard.vehicle.chassisNumber}</p>
-                <p className="text-sm text-slate-700">{jobCard.vehicle.currentKm?.toLocaleString("en-IN") ?? "-"} km</p>
-              </article>
-            </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm leading-5 text-slate-800">
+                <p><span className="font-semibold text-slate-950">Phone:</span> {jobCard.customer.phone}</p>
+                <p><span className="font-semibold text-slate-950">Vehicle:</span> {jobCard.vehicle.registrationNumber ?? jobCard.vehicle.chassisNumber ?? "-"}</p>
+                <p><span className="font-semibold text-slate-950">KM:</span> {jobCard.vehicle.currentKm?.toLocaleString("en-IN") ?? "-"}</p>
+              </div>
+              <div className="mt-1 inline-flex w-fit rounded-md bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">{status.replace(/_/g, " ")}</div>
+            </section>
 
             {status === "APPROVED" || status === "WORK_IN_PROGRESS" ? (
               <article className="rounded-lg border border-[var(--line)] bg-white p-5 shadow-sm">

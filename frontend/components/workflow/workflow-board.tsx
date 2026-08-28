@@ -2,11 +2,14 @@
 
 import type React from "react";
 import Link from "next/link";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Wrench } from "lucide-react";
+import { Search, Wrench } from "lucide-react";
 import { ProtectedShell } from "@/components/layout/protected-shell";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { getWorkflowJobCards, updateWorkflowJobCard, type WorkflowJobCard, type WorkflowUpdate } from "@/services/workflow";
+import { QuickEstimateForm } from "@/components/workflow/quick-estimate-form";
 
 type WorkflowBoardProps = {
   title: string;
@@ -53,13 +56,15 @@ function stageStatus(stage: WorkflowBoardProps["stage"], jobCard: WorkflowJobCar
 
 export function WorkflowBoard({ title, stage }: WorkflowBoardProps) {
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [showQuickEstimate, setShowQuickEstimate] = useState(false);
   const { data = [], isLoading, isError } = useQuery({ queryKey: ["workflow-job-cards"], queryFn: getWorkflowJobCards, retry: false });
   const mutation = useMutation({
     mutationFn: ({ id, input }: { id: number; input: WorkflowUpdate }) => updateWorkflowJobCard(id, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workflow-job-cards"] })
   });
 
-  const rows = filterRows(data, stage);
+  const rows = searchRows(filterRows(data, stage), search);
 
   function save(id: number, input: WorkflowUpdate) {
     mutation.mutate({ id, input });
@@ -68,14 +73,38 @@ export function WorkflowBoard({ title, stage }: WorkflowBoardProps) {
   return (
     <ProtectedShell title={title}>
       <section className="rounded-lg border border-[var(--line)] bg-white p-5 shadow-sm">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold uppercase text-[var(--primary)]">Garage Workflow</p>
+            <h2 className="mt-1 text-xl font-bold tracking-normal text-slate-950">{title}</h2>
+          </div>
+          {stage === "estimate" ? (
+            <Button type="button" onClick={() => setShowQuickEstimate(true)}>
+              CREATE ESTIMATE
+            </Button>
+          ) : null}
+        </div>
+
+        {showQuickEstimate ? <QuickEstimateForm onClose={() => setShowQuickEstimate(false)} /> : null}
+
+        <div className="mb-5 flex items-center gap-2">
+          <Search className="h-5 w-5 text-[var(--primary)]" />
+          <h3 className="text-sm font-bold tracking-normal text-slate-950">Search Customer / Vehicle</h3>
+        </div>
         <div className="mb-5">
-          <p className="text-sm font-semibold uppercase text-[var(--primary)]">Garage Workflow</p>
-          <h2 className="mt-1 text-xl font-bold tracking-normal text-slate-950">{title}</h2>
+          <Input
+            label="Customer Name, Phone, or Vehicle Number"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by customer, phone, or vehicle number"
+          />
         </div>
 
         {isLoading ? <p className="text-sm text-[var(--muted)]">Loading workflow...</p> : null}
         {isError ? <p className="text-sm text-[var(--danger)]">Could not load backend workflow details.</p> : null}
-        {!isLoading && !isError && rows.length === 0 ? <p className="text-sm text-[var(--muted)]">No job cards in this stage.</p> : null}
+        {!isLoading && !isError && rows.length === 0 ? (
+          <p className="text-sm text-[var(--muted)]">{search.trim() ? "No job cards match your search." : "No job cards in this stage."}</p>
+        ) : null}
 
         <div className="grid gap-3">
           {rows.map((jobCard) => {
@@ -126,6 +155,16 @@ function Action({ icon, label, onClick }: { icon: React.ReactNode; label: string
       {icon}
       {label}
     </Button>
+  );
+}
+
+function searchRows(rows: WorkflowJobCard[], search: string) {
+  const query = search.trim().toLowerCase();
+  if (!query) return rows;
+  return rows.filter((row) =>
+    [row.customerName, row.customerPhone, row.registrationNumber, row.chassisNumber, row.jobCardNumber]
+      .filter(Boolean)
+      .some((field) => field!.toLowerCase().includes(query))
   );
 }
 

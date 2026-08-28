@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, Printer } from "lucide-react";
 import { ProtectedShell } from "@/components/layout/protected-shell";
 import { Button } from "@/components/ui/button";
 import { getJobCard, type JobCardDetails } from "@/services/register";
 import { getWorkflowJobCard, updateWorkflowJobCard, type LabourItem, type PartItem, type WorkflowJobCard } from "@/services/workflow";
+import { getGarageSettings } from "@/services/settings";
 import { WorkflowBoard } from "@/components/workflow/workflow-board";
 import { ItemTable, Row, TableCell, computeTotals, emptyLabour, emptyPart, rupees } from "@/components/workflow/shared";
 import { groupComplaintByService } from "@/lib/complaint";
+import { downloadJobCardPdf } from "@/lib/pdf";
 
 export default function EstimatesPage() {
   return (
@@ -56,6 +58,8 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
     retry: false
   });
 
+  const { data: shopSettings } = useQuery({ queryKey: ["garage-settings"], queryFn: getGarageSettings });
+
   useEffect(() => {
     if (!workflow) return;
     setPartsItems(workflow.partsItems.length ? workflow.partsItems : []);
@@ -93,6 +97,24 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
   const isError = jobCardError || workflowError;
   const groupedComplaint = groupComplaintByService(jobCard?.complaint);
 
+  function handlePrint() {
+    if (!jobCard || !workflow) return;
+    const serviceTypes = workflow.serviceTypes
+      ? workflow.serviceTypes.split(",").map((item) => item.trim()).filter(Boolean)
+      : [];
+    downloadJobCardPdf({
+      data: jobCard,
+      shop: shopSettings,
+      serviceTypes,
+      complaint: jobCard.complaint ?? "",
+      odometerKm: jobCard.odometerKm != null ? String(jobCard.odometerKm) : "",
+      expectedDeliveryAt: workflow.expectedDeliveryAt ?? "",
+      workItems: workflow.workItems,
+      partsItems,
+      labourItems
+    });
+  }
+
   return (
     <ProtectedShell title="Estimate" hidePageHeader>
       <section className="mx-auto grid max-w-4xl gap-5">
@@ -119,6 +141,11 @@ function EstimateEditor({ jobCardId }: { jobCardId: string }) {
               </div>
               <div className="mt-1 inline-flex w-fit rounded-md bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">{workflow.status.replace(/_/g, " ")}</div>
             </section>
+
+            <Button type="button" variant="secondary" className="w-fit" onClick={handlePrint}>
+              <Printer className="h-4 w-4" />
+              PRINT PDF
+            </Button>
 
             {groupedComplaint.length ? (
               <article className="rounded-lg border border-[var(--line)] bg-white p-4 shadow-sm">

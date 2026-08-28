@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { ProtectedShell } from "@/components/layout/protected-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getJobCard } from "@/services/register";
 import { getWorkflowJobCard, updateWorkflowJobCard } from "@/services/workflow";
+import { getGarageSettings } from "@/services/settings";
 import { WorkflowBoard } from "@/components/workflow/workflow-board";
 import { Row, SelectBox } from "@/components/workflow/shared";
+import { BillModal } from "@/components/workflow/bill-modal";
 
 export default function FollowupsPage() {
   return (
@@ -49,6 +51,7 @@ function FollowUpEditor({ jobCardId }: { jobCardId: string }) {
   const [whatsappReminderAt, setWhatsappReminderAt] = useState("");
   const [followUpNotes, setFollowUpNotes] = useState("");
   const [message, setMessage] = useState("");
+  const [showBill, setShowBill] = useState(false);
 
   const { data: jobCard, isLoading: jobCardLoading, isError: jobCardError } = useQuery({
     queryKey: ["job-card", jobCardId],
@@ -62,6 +65,7 @@ function FollowUpEditor({ jobCardId }: { jobCardId: string }) {
     enabled: Boolean(jobCardId),
     retry: false
   });
+  const { data: shopSettings } = useQuery({ queryKey: ["garage-settings"], queryFn: getGarageSettings });
 
   useEffect(() => {
     if (!workflow) return;
@@ -122,6 +126,20 @@ function FollowUpEditor({ jobCardId }: { jobCardId: string }) {
               <div className="mt-1 inline-flex w-fit rounded-md bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">{status}</div>
             </section>
 
+            <Button type="button" variant="secondary" className="w-fit" onClick={() => setShowBill(true)}>
+              <FileText className="h-4 w-4" />
+              GENERATE BILL
+            </Button>
+
+            {showBill ? (
+              <BillModal
+                jobCard={jobCard}
+                workflow={workflow}
+                shop={shopSettings}
+                onClose={() => setShowBill(false)}
+              />
+            ) : null}
+
             <article className="rounded-lg border border-[var(--line)] bg-white p-4 shadow-sm">
               <Row label="Last Service" value={new Date(workflow.updatedAt).toLocaleDateString()} />
             </article>
@@ -141,11 +159,7 @@ function FollowUpEditor({ jobCardId }: { jobCardId: string }) {
               <Button type="button" className="mt-4" loading={mutation.isPending} onClick={() => mutation.mutate()}>SAVE FOLLOW-UP</Button>
             </article>
 
-            <article className="rounded-lg border border-[var(--line)] bg-white p-5 shadow-sm">
-              <Link href={`/job-cards/${jobCardId}`} className="text-sm font-semibold text-[var(--primary)] hover:underline">View Complete Vehicle History</Link>
-            </article>
-
-            {message ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p> : null}
+            {message ?<p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p> : null}
           </>
         ) : null}
       </section>

@@ -109,7 +109,20 @@ export default function RegisterPage() {
             <Button type="button" className="self-end" onClick={handleSearch}>SEARCH</Button>
           </div>
           {searchResult ? (
-            <div className="mt-4 grid gap-3 rounded-md border border-teal-200 bg-teal-50 p-4 text-sm md:grid-cols-3">
+            <div
+              role={searchResult.lastJobCardId ? "button" : undefined}
+              tabIndex={searchResult.lastJobCardId ? 0 : undefined}
+              onClick={() => {
+                if (searchResult.lastJobCardId) router.push(`/job-cards/${searchResult.lastJobCardId}`);
+              }}
+              onKeyDown={(event) => {
+                if (searchResult.lastJobCardId && (event.key === "Enter" || event.key === " ")) {
+                  event.preventDefault();
+                  router.push(`/job-cards/${searchResult.lastJobCardId}`);
+                }
+              }}
+              className={`mt-4 grid gap-3 rounded-md border border-teal-200 bg-teal-50 p-4 text-sm md:grid-cols-3 ${searchResult.lastJobCardId ? "cursor-pointer transition hover:border-teal-400 hover:bg-teal-100 focus-ring" : ""}`}
+            >
               <Info label="Customer" value={searchResult.customerName} />
               <Info label="Phone" value={searchResult.customerPhone} />
               <Info label="Vehicle Number" value={searchResult.registrationNumber || searchResult.chassisNumber} />
@@ -117,6 +130,9 @@ export default function RegisterPage() {
               <Info label="Last Service Date" value={searchResult.lastServiceDate ? new Date(searchResult.lastServiceDate).toLocaleDateString() : "No previous service"} />
               <Info label="Last KM" value={searchResult.lastKm != null ? `${searchResult.lastKm.toLocaleString("en-IN")} KM` : "-"} />
               <Info label="Last Job Card" value={searchResult.lastJobCardNumber ?? "-"} />
+              {searchResult.lastJobCardId ? (
+                <p className="md:col-span-3 text-xs font-semibold uppercase text-teal-800">Click to view this vehicle's details</p>
+              ) : null}
             </div>
           ) : searched ? <p className="mt-3 text-sm text-[var(--muted)]">Vehicle not found. Create a new vehicle entry below.</p> : null}
         </div>

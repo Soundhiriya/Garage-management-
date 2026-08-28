@@ -10,6 +10,7 @@ import type {
 import type { GarageSettings } from "@/services/settings";
 
 import { groupComplaintByService } from "@/lib/complaint";
+import type { BillData } from "@/lib/bill";
 
 // ============================================================
 // MONEY FORMAT
@@ -1765,4 +1766,299 @@ export async function shareJobCardPdfOnWhatsApp(
     )}`,
     "_blank"
   );
+}
+
+// ============================================================
+// TAX INVOICE (BILL) — GENERATED FROM buildBillData()
+// Mirrors the on-screen <TaxInvoice> component so preview,
+// print and save always show identical, live Job Card data.
+// ============================================================
+
+function drawTaxInvoiceHeader(doc: jsPDF, data: BillData) {
+  // GARAGE BLOCK (left)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...INK);
+  doc.text(data.garage.name, PAGE_LEFT, 14);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  const garageLines = [
+    data.garage.address,
+    `GSTIN: ${data.garage.gstin}`,
+    `Phone: ${data.garage.phone}`,
+    `Email: ${data.garage.email}`
+  ];
+  garageLines.forEach((line, index) => {
+    doc.text(line, PAGE_LEFT, 19 + index * 4, { maxWidth: 130 });
+  });
+
+  // INVOICE NO/DATE (right)
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...INK);
+  doc.text(`Invoice No: ${data.invoice.number}`, PAGE_RIGHT, 14, { align: "right" });
+  doc.text(`Invoice Date: ${data.invoice.date}`, PAGE_RIGHT, 18.5, { align: "right" });
+
+  const afterGarageY = 19 + garageLines.length * 4 + 3;
+  const boxTop = Math.max(afterGarageY, 28);
+
+  doc.setDrawColor(...LINE);
+  doc.line(PAGE_LEFT, boxTop, PAGE_RIGHT, boxTop);
+
+  // CUSTOMER (left) / JOB CARD + VEHICLE (right)
+  let leftY = boxTop + 5.5;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...BRAND);
+  doc.text("BILL TO", PAGE_LEFT, leftY);
+  leftY += 4.5;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.3);
+  doc.setTextColor(...INK);
+  [
+    `Name: ${data.customer.name}`,
+    `Address: ${data.customer.address}`,
+    `Phone: ${data.customer.phone}`
+  ].forEach((line) => {
+    const wrapped = doc.splitTextToSize(line, 85);
+    doc.text(wrapped, PAGE_LEFT, leftY, { maxWidth: 85 });
+    leftY += wrapped.length * 4;
+  });
+
+  let rightY = boxTop + 5.5;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...BRAND);
+  doc.text("JOB CARD / VEHICLE", PAGE_RIGHT, rightY, { align: "right" });
+  rightY += 4.5;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.3);
+  doc.setTextColor(...INK);
+  [
+    `Job Card Date: ${data.jobCard.date}`,
+    `Job Card No: ${data.jobCard.number}`,
+    `Vehicle Reg No: ${data.vehicle.registrationNumber}`,
+    `Odometer: ${data.vehicle.odometer}`,
+    `Chassis No: ${data.vehicle.chassisNumber}`
+  ].forEach((line) => {
+    doc.text(line, PAGE_RIGHT, rightY, { align: "right", maxWidth: 90 });
+    rightY += 4;
+  });
+
+  const panelBottom = Math.max(leftY, rightY) + 2.5;
+
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.25);
+  doc.line(PAGE_LEFT, panelBottom, PAGE_RIGHT, panelBottom);
+
+  return panelBottom + 4;
+}
+
+function buildTaxInvoicePdfDoc(data: BillData) {
+  const doc = new jsPDF();
+
+  // Page frame — gives the invoice a bordered, professional edge.
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.3);
+  doc.rect(10, 10, 190, 285);
+
+  let y = drawTaxInvoiceHeader(doc, data);
+
+  // ==========================================================
+  // SERVICE VISIT
+  // ==========================================================
+
+  if (data.serviceItems.length || data.complaintRaw) {
+    y = drawSectionTitle(doc, y, "SERVICE VISIT");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...INK);
+    doc.text("Complaint:", PAGE_LEFT, y);
+    y += 4.5;
+
+    if (data.serviceItems.length) {
+      data.serviceItems.forEach((group) => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(...INK);
+        const serviceLabel = `•  ${group.service}: `;
+        doc.text(serviceLabel, PAGE_LEFT + 3, y);
+        const serviceWidth = doc.getTextWidth(serviceLabel);
+        doc.setFont("helvetica", "normal");
+        const wrapped = doc.splitTextToSize(group.issues.join(", "), 177 - serviceWidth);
+        doc.text(wrapped, PAGE_LEFT + 3 + serviceWidth, y, { maxWidth: 177 - serviceWidth });
+        y += wrapped.length * 4;
+      });
+    } else {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...INK);
+      const wrapped = doc.splitTextToSize(data.complaintRaw, 177);
+      doc.text(wrapped, PAGE_LEFT + 3, y, { maxWidth: 177 });
+      y += wrapped.length * 4;
+    }
+
+    y += 3;
+  }
+
+  const compactTable = {
+    fontSize: 6.5,
+    cellPadding: 1.2,
+    textColor: INK as unknown as [number, number, number],
+    lineColor: LINE as unknown as [number, number, number]
+  };
+
+  const compactHead = {
+    fillColor: BRAND as unknown as [number, number, number],
+    textColor: WHITE as unknown as [number, number, number],
+    fontStyle: "bold" as const,
+    fontSize: 6.5
+  };
+
+  const totalLabelStyle = { halign: "right" as const, fontStyle: "bold" as const, fillColor: [241, 245, 249] as unknown as [number, number, number] };
+
+  // ==========================================================
+  // PARTS
+  // ==========================================================
+
+  if (data.parts.length) {
+    autoTable(doc, {
+      startY: y,
+      margin: { left: PAGE_LEFT, right: PAGE_LEFT },
+      head: [["S.No", "Part No", "Description", "HSN", "Qty", "Unit Price", "Disc.", "Disc Amt", "Taxable Amt.", "GST %", "GST", "Total"]],
+      body: [
+        ...data.parts.map((p) => [
+          String(p.sno),
+          p.partNumber,
+          p.description,
+          p.hsn,
+          String(p.qty),
+          money(p.unitPrice),
+          `${p.discountPercent}%`,
+          money(p.discountAmount),
+          money(p.taxableAmount),
+          `${p.gstPercent}%`,
+          money(p.gstAmount),
+          money(p.total)
+        ]),
+        [
+          { content: "Parts Total", colSpan: 11, styles: totalLabelStyle },
+          { content: money(data.partsTotal), styles: totalLabelStyle }
+        ]
+      ],
+      styles: compactTable,
+      headStyles: compactHead,
+      alternateRowStyles: { fillColor: [248, 250, 252] as unknown as [number, number, number] },
+      columnStyles: {
+        0: { cellWidth: 8, halign: "center" },
+        4: { halign: "center" },
+        5: { halign: "right" },
+        6: { halign: "right" },
+        7: { halign: "right" },
+        8: { halign: "right" },
+        9: { halign: "right" },
+        10: { halign: "right" },
+        11: { halign: "right" }
+      },
+      theme: "grid"
+    });
+
+    y = lastAutoTableY(doc) + 6;
+  }
+
+  // ==========================================================
+  // LABOUR
+  // ==========================================================
+
+  if (data.labour.length) {
+    y = drawSectionTitle(doc, y, "LABOUR");
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: PAGE_LEFT, right: PAGE_LEFT },
+      head: [["S.No", "Description", "Rate", "Total"]],
+      body: [
+        ...data.labour.map((l) => [String(l.sno), l.description, money(l.rate), money(l.total)]),
+        [
+          { content: "Labour Total", colSpan: 3, styles: totalLabelStyle },
+          { content: money(data.labourTotal), styles: totalLabelStyle }
+        ]
+      ],
+      styles: { ...compactTable, fontSize: 7.5 },
+      headStyles: { ...compactHead, fontSize: 7.5 },
+      alternateRowStyles: { fillColor: [248, 250, 252] as unknown as [number, number, number] },
+      columnStyles: {
+        0: { cellWidth: 12, halign: "center" },
+        2: { halign: "right" },
+        3: { halign: "right" }
+      },
+      theme: "grid"
+    });
+
+    y = lastAutoTableY(doc) + 6;
+  }
+
+  // ==========================================================
+  // BILL SUMMARY — compact box, right-aligned
+  // ==========================================================
+
+  const summaryRows: [string, string][] = [
+    ["Total Taxable Amount", money(data.summary.totalTaxableAmount)],
+    ["Total CGST", money(data.summary.totalCgst)],
+    ["Total SGST", money(data.summary.totalSgst)],
+    ["Discount", data.summary.discount > 0 ? `- ${money(data.summary.discount)}` : money(0)],
+    ["Round Off", money(data.summary.roundOff)],
+    ["GRAND TOTAL", money(data.summary.grandTotal)]
+  ];
+
+  y = drawTotalsBox(doc, y, summaryRows);
+  y += 6;
+
+  // ==========================================================
+  // SIGNATURES
+  // ==========================================================
+
+  const signatureY = Math.max(y + 14, 268);
+  doc.setDrawColor(...LINE);
+  doc.line(PAGE_LEFT, signatureY, PAGE_LEFT + 60, signatureY);
+  doc.line(PAGE_RIGHT - 60, signatureY, PAGE_RIGHT, signatureY);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...INK);
+  doc.text("Customer Signature", PAGE_LEFT + 30, signatureY + 4, { align: "center" });
+  doc.text("Authorised Signatory", PAGE_RIGHT - 30, signatureY + 4, { align: "center" });
+
+  // ==========================================================
+  // FOOTER
+  // ==========================================================
+
+  doc.setDrawColor(...LINE);
+  doc.line(PAGE_LEFT, 283, PAGE_RIGHT, 283);
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(7.2);
+  doc.setTextColor(...MUTED);
+  doc.text("Subject to Chennai Jurisdiction. This is a computer generated Invoice and does not require signature.", (PAGE_LEFT + PAGE_RIGHT) / 2, 288, { align: "center" });
+  doc.text(`Powered by ${data.garage.name}`, (PAGE_LEFT + PAGE_RIGHT) / 2, 292, { align: "center" });
+
+  return {
+    doc,
+    filename: `TaxInvoice-${data.invoice.number !== "-" ? data.invoice.number : data.jobCard.number}.pdf`
+  };
+}
+
+export function downloadTaxInvoicePdf(data: BillData) {
+  const { doc, filename } = buildTaxInvoicePdfDoc(data);
+  doc.save(filename);
+}
+
+export function printTaxInvoicePdf(data: BillData) {
+  const { doc } = buildTaxInvoicePdfDoc(data);
+  doc.autoPrint();
+  window.open(doc.output("bloburl"), "_blank");
 }

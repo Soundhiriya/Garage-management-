@@ -54,7 +54,7 @@ function PaymentEditor({ jobCardId }: { jobCardId: string }) {
 
   useEffect(() => {
     if (!workflow) return;
-    setPaidAmount(workflow.paidAmount ? String(workflow.paidAmount) : "");
+    setPaidAmount(String(workflow.paidAmount || workflow.invoiceAmount || 0));
     setPaymentMode(workflow.paymentMode ?? "");
   }, [workflow]);
 

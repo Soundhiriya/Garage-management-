@@ -30,7 +30,8 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
-    if ((error.response?.status === 401 || error.response?.status === 403) && !original?._retry && !original?.url?.includes("/auth/")) {
+    const isAuthRetryExempt = /\/auth\/(login|refresh|logout|forgot-password)/.test(original?.url ?? "");
+    if ((error.response?.status === 401 || error.response?.status === 403) && !original?._retry && !isAuthRetryExempt) {
       original._retry = true;
       const refreshed = await axios.post(`${baseURL}/auth/refresh`, null, { withCredentials: true });
       const token = refreshed.data.data.accessToken;
